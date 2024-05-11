@@ -48,36 +48,37 @@ async def read_manage(
         }
     raise HTTPException(status_code=404, detail="Consultation not found")
 
-# @ConsultRouter.post("/consult/", response_model=dict)
-# async def create_consult(
-#     student_Id: int = Form(...), 
-#     nurseID: int = Form(...), 
-#     illness: str = Form(...), 
-#     medicine: str = Form(...),
-#     date: str = Form(...),
-#     time_In: str = Form(...),
-#     check_Out: str = Form(...), 
-#     db=Depends(get_db)
-# ):
+@ConsultRouter.post("/consult/", response_model=dict)
+async def create_consult(
+    student_Id: int = Form(...), 
+    nurseID: int = Form(...), 
+    illness: str = Form(...), 
+    medicine: str = Form(...),
+    date: str = Form(...),
+    time_In: str = Form(...),
+    check_Out: str = Form(...), 
+    db=Depends(get_db)
+):
 
-#     query = "INSERT INTO consult (student_Id, nurseID, illness, medicine, date, time_In, check_Out) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-#     db[0].execute(query, (student_Id, nurseID, illness, medicine, date, time_In, check_Out))
-#     db[1].commit()
+    query = "INSERT INTO consult (student_Id, nurseID, illness, medicine, date, time_In, check_Out) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+    db[0].execute(query, (student_Id, nurseID, illness, medicine, date, time_In, check_Out))
+    db[1].commit()
 
-#     # Retrieve the last inserted ID using LAST_INSERT_ID()
-#     db[0].execute("SELECT LAST_INSERT_ID()")
-#     new_consult_id = db[0].fetchone()[0]
+    # Retrieve the last inserted ID using LAST_INSERT_ID()
+    db[0].execute("SELECT LAST_INSERT_ID()")
+    new_consult_id = db[0].fetchone()[0]
 
-#     return  {
-#         "Consultation_Id": new_consult_id,
-#         "student_Id": student_Id,
-#         "nurseID": nurseID,
-#         "illness": illness,
-#         "medicine": medicine,
-#         "date": date,
-#         "time_In": time_In,
-#         "check_Out": check_Out,
-#     }
+    return  {
+        "Consultation_Id": new_consult_id,
+        "student_Id": student_Id,
+        "nurseID": nurseID,
+        "illness": illness,
+        "medicine": medicine,
+        "date": date,
+        "time_In": time_In,
+        "check_Out": check_Out,
+    }
+
 
 @ConsultRouter.put("/consult/{consult_id}", response_model=dict)
 async def update_consult(

@@ -1,6 +1,6 @@
 describe('API Manage Endpoint Testing', () => {
     // Define the base URL of your FastAPI application
-    const baseUrl = 'https://backendfinal-eta.vercel.app';
+    const baseUrl = 'http://localhost:8000';
   
     beforeEach(() => {
       // Visit the Swagger UI page

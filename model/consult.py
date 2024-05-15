@@ -34,6 +34,7 @@ async def read_manage(
 ):
     query = "SELECT Consultation_Id, student_Id, nurseID, illness, medicine, date, time_In, check_Out FROM consult WHERE Consultation_Id = %s"
     db[0].execute(query, (consult_id,))
+    
     consult = db[0].fetchone()
     if consult:
         return {
@@ -59,7 +60,13 @@ async def create_consult(
     check_Out: str = Form(...), 
     db=Depends(get_db)
 ):
+    # Check if student_Id exists in the manage table
+    check_student_query = "SELECT COUNT(*) FROM manage WHERE student_Id = %s"
+    db[0].execute(check_student_query, (student_Id,))
+    if db[0].fetchone()[0] == 0:
+        raise HTTPException(status_code=400, detail="student_Id does not exist in the manage table")
 
+    # Insert into consult table
     query = "INSERT INTO consult (student_Id, nurseID, illness, medicine, date, time_In, check_Out) VALUES (%s, %s, %s, %s, %s, %s, %s)"
     db[0].execute(query, (student_Id, nurseID, illness, medicine, date, time_In, check_Out))
     db[1].commit()
@@ -68,7 +75,21 @@ async def create_consult(
     db[0].execute("SELECT LAST_INSERT_ID()")
     new_consult_id = db[0].fetchone()[0]
 
-    return  {
+    # Insert into manage_illness table
+    query_illness = "INSERT INTO manage_illness (nurseID, illness) VALUES (%s, %s)"
+    db[0].execute(query_illness, (nurseID, illness))
+    db[1].commit()
+
+    # Retrieve the last inserted illness_Id using LAST_INSERT_ID()
+    db[0].execute("SELECT LAST_INSERT_ID()")
+    new_illness_id = db[0].fetchone()[0]
+
+    # Insert into consulted_illness table
+    query_con_illness = "INSERT INTO consulted_illness (Consultation_Id, illness_Id) VALUES (%s, %s)"
+    db[0].execute(query_con_illness, (new_consult_id, new_illness_id))
+    db[1].commit()
+
+    return {
         "Consultation_Id": new_consult_id,
         "student_Id": student_Id,
         "nurseID": nurseID,

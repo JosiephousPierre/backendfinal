@@ -1,5 +1,5 @@
 # model/consulted_medication.py
-from fastapi import Depends, HTTPException, APIRouter, Form
+from fastapi import Depends, HTTPException, APIRouter, Form, status
 from .db import get_db
 
 
@@ -47,8 +47,21 @@ async def create_consulted_medication(
     db=Depends(get_db)
 ):
 
-    query = "INSERT INTO consulted_med (Consultation_Id, medicine_ID, quantity) VALUES (%s, %s, %s)"
-    db[0].execute(query, (Consultation_Id, medicine_ID, quantity))
+    # Check if there is enough quantity in the manage_med table
+    check_query = "SELECT quantity FROM manage_med WHERE medicine_ID = %s"
+    db[0].execute(check_query, (medicine_ID,))
+    manage_med_quantity = db[0].fetchone()
+
+    if not manage_med_quantity or quantity > manage_med_quantity[0]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Not enough quantity of medicine")
+
+    # Update the quantity in the manage_med table
+    update_query = "UPDATE manage_med SET quantity = quantity - %s WHERE medicine_ID = %s"
+    db[0].execute(update_query, (quantity, medicine_ID))
+
+    # Insert the consulted medication
+    insert_query = "INSERT INTO consulted_med (Consultation_Id, medicine_ID, quantity) VALUES (%s, %s, %s)"
+    db[0].execute(insert_query, (Consultation_Id, medicine_ID, quantity))
 
     # Retrieve the last inserted ID using LAST_INSERT_ID()
     db[0].execute("SELECT LAST_INSERT_ID()")
@@ -56,11 +69,12 @@ async def create_consulted_medication(
     db[1].commit()
 
     return {
-    "prescription_Id": new_prescription_Id,
-    "Consultation_Id": Consultation_Id,
-    "medicine_ID": medicine_ID,
-    "quantity": quantity
-}
+        "prescription_Id": new_prescription_Id,
+        "Consultation_Id": Consultation_Id,
+        "medicine_ID": medicine_ID,
+        "quantity": quantity
+    }
+
 
 @ConsultedMedicationRouter.put("/consulted_medication/{prescription_Id}", response_model=dict)
 async def update_consulted_medication(
@@ -70,18 +84,56 @@ async def update_consulted_medication(
     quantity: int = Form(...),
     db=Depends(get_db)
 ):
+    try:
+        # Get the current medicine_ID and quantity of the consulted medication
+        query_get_medicine_info = "SELECT medicine_ID, quantity FROM consulted_med WHERE prescription_Id = %s"
+        db[0].execute(query_get_medicine_info, (prescription_Id,))
+        current_medicine_info = db[0].fetchone()
 
-    # Update consulted medication information in the database 
-    query = "UPDATE consulted_med SET Consultation_Id = %s, medicine_ID = %s, quantity = %s WHERE prescription_Id = %s"
-    db[0].execute(query, (Consultation_Id, medicine_ID, quantity, prescription_Id))
+        if not current_medicine_info:
+            raise HTTPException(status_code=404, detail="Consulted Medication not found")
 
-    # Check if the update was successful
-    if db[0].rowcount > 0:
+        current_medicine_ID, current_quantity = current_medicine_info
+
+        # Calculate the quantity difference for the current and new medicine IDs
+        quantity_difference = quantity - current_quantity
+
+        # Scenario 1: Changing consult_med quantity only
+        if current_medicine_ID == medicine_ID:
+            query_update_manage_med = "UPDATE manage_med SET quantity = quantity - %s WHERE medicine_ID = %s"
+            db[0].execute(query_update_manage_med, (quantity_difference, medicine_ID))
+
+        # Scenario 2: Changing consult_med medicine_ID only
+        elif current_quantity == quantity:
+            query_update_manage_med_current = "UPDATE manage_med SET quantity = quantity + %s WHERE medicine_ID = %s"
+            db[0].execute(query_update_manage_med_current, (current_quantity, current_medicine_ID))
+            query_update_manage_med_new = "UPDATE manage_med SET quantity = quantity - %s WHERE medicine_ID = %s"
+            db[0].execute(query_update_manage_med_new, (current_quantity, medicine_ID))
+
+        # Scenario 3: Changing both consult_med quantity and medicine_ID
+        else:
+            # Revert previous stock changes for the current medicine_ID
+            query_update_manage_med_current = "UPDATE manage_med SET quantity = quantity + %s WHERE medicine_ID = %s"
+            db[0].execute(query_update_manage_med_current, (current_quantity, current_medicine_ID))
+
+            # Apply stock changes for the new medicine_ID
+            query_update_manage_med_new = "UPDATE manage_med SET quantity = quantity - %s WHERE medicine_ID = %s"
+            db[0].execute(query_update_manage_med_new, (quantity, medicine_ID))
+
+        # Update the consulted medication information in the database
+        query_update_consulted_med = "UPDATE consulted_med SET Consultation_Id = %s, medicine_ID = %s, quantity = %s WHERE prescription_Id = %s"
+        db[0].execute(query_update_consulted_med, (Consultation_Id, medicine_ID, quantity, prescription_Id))
+
+        # Commit the changes
         db[1].commit()
+
         return {"message": "Consulted Medication updated successfully"}
-    
-    # If no rows were affected, consulted medication not found
-    raise HTTPException(status_code=404, detail="Consulted Medication not found")
+
+    except Exception as err:
+        db[1].rollback()
+        raise HTTPException(status_code=500, detail="Error updating consulted medication.") from err
+
+
 
 @ConsultedMedicationRouter.delete("/consulted_medication/{prescription_Id}", response_model=dict)
 async def delete_consulted_medication(
@@ -90,16 +142,21 @@ async def delete_consulted_medication(
 ):
     try:
         # Check if the consulted medication exists
-        query_check_consulted_medication = "SELECT prescription_Id FROM consulted_med WHERE prescription_Id = %s"
+        query_check_consulted_medication = "SELECT prescription_Id, medicine_ID, quantity FROM consulted_med WHERE prescription_Id = %s"
         db[0].execute(query_check_consulted_medication, (prescription_Id,))
-        existing_consulted_medication = db[0].fetchone()
+        consulted_medication = db[0].fetchone()
 
-        if not existing_consulted_medication:
+        if not consulted_medication:
             raise HTTPException(status_code=404, detail="Consulted Medication not found")
 
         # Delete the consulted medication
         query_delete_consulted_medication = "DELETE FROM consulted_med WHERE prescription_Id = %s"
         db[0].execute(query_delete_consulted_medication, (prescription_Id,))
+        db[1].commit()
+
+        # Add the quantity back to the manage_med table
+        update_query = "UPDATE manage_med SET quantity = quantity + %s WHERE medicine_ID = %s"
+        db[0].execute(update_query, (consulted_medication[2], consulted_medication[1]))
         db[1].commit()
 
         return {"message": "Consulted Medication deleted successfully"}
@@ -109,3 +166,5 @@ async def delete_consulted_medication(
     finally:
         # Close the database cursor
         db[0].close()
+
+

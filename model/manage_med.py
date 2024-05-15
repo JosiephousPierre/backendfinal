@@ -24,7 +24,7 @@ async def read_medicine(
             for manage_med in db[0].fetchall()]
     return medicine
 
-@MedicineRouter.get("/manage_med/{medicine_Id}", response_model=dict)
+@MedicineRouter.get("/manage_med/{medicine_ID}", response_model=dict)
 async def read_medicine(
     medicine_ID: int, 
     db=Depends(get_db)

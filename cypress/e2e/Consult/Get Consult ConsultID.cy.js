@@ -1,3 +1,12 @@
+describe('API Manage Endpoint Testing', () => {
+  // Define the base URL of your FastAPI application
+  const baseUrl = 'https://backendfinal-eta.vercel.app';
+
+  beforeEach(() => {
+    // Visit the Swagger UI page
+    cy.visit(`${baseUrl}/docs#/`);
+  });
+
 it('should GET consult using consult_id', () => {
   // Locate the div with the class 'opblock-summary opblock-summary-put' containing the specified text
   cy.get('.opblock-summary.opblock-summary-put')
@@ -28,4 +37,5 @@ it('should GET consult using consult_id', () => {
     .find('.microlight')
     .should('not.contain', 'Internal Server Error')
     .and('not.contain', 'Error');
+});
 });

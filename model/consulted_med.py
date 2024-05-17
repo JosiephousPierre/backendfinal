@@ -7,6 +7,7 @@ ConsultedMedicationRouter = APIRouter(tags=["Consulted Medication"])
 
 # CRUD operations
 
+
 @ConsultedMedicationRouter.get("/consulted_medication/", response_model=list)
 async def read_consulted_medications(
     db=Depends(get_db)

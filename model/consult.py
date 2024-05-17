@@ -6,6 +6,7 @@ ConsultRouter = APIRouter(tags=["Consult"])
 
 # CRUD operations
 
+
 @ConsultRouter.get("/consult/", response_model=list)
 async def read_consult(
     db=Depends(get_db)
